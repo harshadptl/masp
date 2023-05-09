@@ -17,6 +17,7 @@ use masp_primitives::{
 };
 use rand_core::OsRng;
 use std::ops::{AddAssign, Neg};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::masp_compute_value_balance;
 use crate::circuit::convert::Convert;
@@ -113,10 +114,14 @@ impl SaplingProvingContext {
                 .collect(),
             anchor: Some(anchor),
         };
+        let t1 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        println!("Current Micro Seconds: {}", t1.as_micros());
 
         // Create proof
         let proof =
             create_random_proof(instance, proving_key, &mut rng).expect("proving should not fail");
+        let t2 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        println!(" Micro Seconds: {}", t2.as_micros() - t1.as_micros());
 
         // Try to verify the proof:
         // Construct public input for circuit

@@ -172,6 +172,7 @@ impl TxProver for LocalTxProver {
         anchor: bls12_381::Scalar,
         merkle_path: MerklePath<Node>,
     ) -> Result<([u8; GROTH_PROOF_SIZE], jubjub::ExtendedPoint, PublicKey), ()> {
+
         let (proof, cv, rk) = ctx.spend_proof(
             proof_generation_key,
             diversifier,
@@ -251,5 +252,107 @@ impl TxProver for LocalTxProver {
         sighash: &[u8; 32],
     ) -> Result<Signature, ()> {
         ctx.binding_sig(assets_and_values, sighash)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use group::ff::Field;
+    use rand_core::OsRng;
+    use masp_primitives::consensus::{NetworkUpgrade, Parameters, TEST_NETWORK};
+    use masp_primitives::memo::MemoBytes;
+    use masp_primitives::merkle_tree::{CommitmentTree, IncrementalWitness};
+    use masp_primitives::sapling::Rseed;
+    use masp_primitives::transaction::builder::{Builder, Error};
+    use masp_primitives::transaction::components::Amount;
+    use masp_primitives::transaction::components::amount::{DEFAULT_FEE, zec};
+    use masp_primitives::zip32::ExtendedSpendingKey;
+    use secp256k1::Secp256k1;
+    use masp_primitives::transaction::fees::fixed;
+    use crate::{MASP_CONVERT_NAME, MASP_OUTPUT_NAME, MASP_SPEND_NAME};
+    use crate::prover::LocalTxProver;
+
+    #[test]
+    fn fails_on_negative_change() {
+        let mut rng = OsRng;
+
+        let (_, transparent_address) = Secp256k1::new().generate_keypair(&mut OsRng);
+        // Just use the master key as the ExtendedSpendingKey for this test
+        let extsk = ExtendedSpendingKey::master(&[]);
+        let tx_height = TEST_NETWORK
+            .activation_height(NetworkUpgrade::MASP)
+            .unwrap();
+
+        let dfvk = extsk.to_diversifiable_full_viewing_key();
+        let ovk = Some(dfvk.fvk().ovk);
+        let to = dfvk.default_address().1;
+
+
+        let note1 = to
+            .create_note(
+                zec(),
+                51000,
+                Rseed::BeforeZip212(jubjub::Fr::random(&mut rng)),
+            )
+            .unwrap();
+        let cmu1 = note1.commitment();
+        let mut tree = CommitmentTree::empty();
+        tree.append(cmu1).unwrap();
+        let mut witness1 = IncrementalWitness::from_tree(&tree);
+
+
+        let params_dir = PathBuf::from("/Users/harshadpatil/Library/Application Support/MASPParams");
+        let spend_path = params_dir.join(MASP_SPEND_NAME);
+        let convert_path = params_dir.join(MASP_CONVERT_NAME);
+        let output_path = params_dir.join(MASP_OUTPUT_NAME);
+        let prover = LocalTxProver::new(&spend_path, &output_path, &convert_path);
+
+        // Succeeds if there is sufficient input
+        // 0.0003 z-ZEC out, 0.0002 t-ZEC out,  0.00051 z-ZEC in
+
+        {
+            let mut builder = Builder::new(TEST_NETWORK, tx_height);
+            builder
+                .add_sapling_spend(extsk, *to.diversifier(), note1, witness1.path().unwrap())
+                .unwrap();
+            builder
+                .add_sapling_output(ovk, to, zec(), 5000, MemoBytes::empty())
+                .unwrap();
+            builder
+                .add_sapling_output(ovk, to, zec(), 5000, MemoBytes::empty())
+                .unwrap();
+            builder
+                .add_sapling_output(ovk, to, zec(), 5000, MemoBytes::empty())
+                .unwrap();
+            builder
+                .add_sapling_output(ovk, to, zec(), 5000, MemoBytes::empty())
+                .unwrap();
+            builder
+                .add_sapling_output(ovk, to, zec(), 5000, MemoBytes::empty())
+                .unwrap();
+            builder
+                .add_sapling_output(ovk, to, zec(), 5000, MemoBytes::empty())
+                .unwrap();
+            builder
+                .add_sapling_output(ovk, to, zec(), 5000, MemoBytes::empty())
+                .unwrap();
+            builder
+                .add_sapling_output(ovk, to, zec(), 5000, MemoBytes::empty())
+                .unwrap();
+            builder
+                .add_sapling_output(ovk, to, zec(), 5000, MemoBytes::empty())
+                .unwrap();
+            builder
+                .add_sapling_output(ovk, to, zec(), 5000, MemoBytes::empty())
+                .unwrap();
+
+
+            let _ = builder.build(&prover, &fixed::FeeRule::standard()).unwrap();
+            // assert_eq!(
+            //     builder.mock_build(),
+            //     Err(Error::SaplingBuild(build_s::Error::BindingSig))
+            // )
+        }
     }
 }

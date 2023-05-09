@@ -40,6 +40,8 @@ wagyu-zcash-parameters = { version = "0.2", optional = true }
 getrandom = { version = "0.2", features = ["js"] }
 itertools = "0.10.1"
 
+secp256k1 = { version = "0.24.1", features = [ "rand" ] }
+
 [dev-dependencies]
 byteorder = "1"
 criterion = "0.4"
